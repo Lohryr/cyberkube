@@ -126,10 +126,12 @@ func NewWithDynamic(dyn dynamic.Interface, namespace string) *Client {
 
 // StartInformer starts the Challenge CR informer (watch + cache) scoped to
 // the client's namespace and blocks until its cache has completed the
-// initial sync or ctx is done. It must be called once before ListChallenges
-// or GetChallenge serve real traffic; calling it more than once is not
-// supported.
-func (c *Client) StartInformer(ctx context.Context) error {
+// initial sync, syncTimeout elapses, or ctx is done. ctx must be the
+// process-lifetime context: it also drives the watch goroutines, so a
+// short-lived ctx would freeze the cache at the initial sync once it
+// expires. It must be called once before ListChallenges or GetChallenge
+// serve real traffic; calling it more than once is not supported.
+func (c *Client) StartInformer(ctx context.Context, syncTimeout time.Duration) error {
 	factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(
 		c.dyn, defaultResync, c.namespace, nil)
 	informer := factory.ForResource(challengeGVR)
@@ -137,10 +139,12 @@ func (c *Client) StartInformer(ctx context.Context) error {
 	c.challengeSynced = informer.Informer().HasSynced
 
 	factory.Start(ctx.Done())
-	synced := factory.WaitForCacheSync(ctx.Done())
+	waitCtx, cancelWait := context.WithTimeout(ctx, syncTimeout)
+	defer cancelWait()
+	synced := factory.WaitForCacheSync(waitCtx.Done())
 	for gvr, ok := range synced {
 		if !ok {
-			return fmt.Errorf("wait for cache sync of %s: %w", gvr, ctx.Err())
+			return fmt.Errorf("wait for cache sync of %s: %w", gvr, waitCtx.Err())
 		}
 	}
 	return nil

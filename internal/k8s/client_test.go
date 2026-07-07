@@ -30,7 +30,7 @@ func newFakeClient(t *testing.T, objects ...runtime.Object) *Client {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if err := c.StartInformer(ctx); err != nil {
+	if err := c.StartInformer(ctx, 5*time.Second); err != nil {
 		t.Fatalf("StartInformer: %v", err)
 	}
 	return c

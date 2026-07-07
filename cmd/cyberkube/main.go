@@ -107,9 +107,10 @@ func run() error {
 		return fmt.Errorf("kubernetes client: %w", err)
 	}
 
-	syncCtx, cancelSync := context.WithTimeout(ctx, informerSyncTimeout)
-	defer cancelSync()
-	if err := kubeClient.StartInformer(syncCtx); err != nil {
+	// ctx (process lifetime) drives the watch; the timeout only bounds the
+	// initial cache sync. Passing a short-lived ctx here froze the cache at
+	// boot — CRs applied afterwards were invisible until pod restart.
+	if err := kubeClient.StartInformer(ctx, informerSyncTimeout); err != nil {
 		return fmt.Errorf("start challenge informer: %w", err)
 	}
 	slog.Info("challenge informer cache synced", "namespace", challengeNamespace)

@@ -63,9 +63,13 @@ func New(cfg Config) http.Handler {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	// NGINX Ingress auth-url subrequest target; also used by the frontend
-	// to check session validity.
+	// Auth check target: NGINX Ingress auth-url subrequest, Envoy Gateway
+	// SecurityPolicy extAuth, and the frontend's session validity probe.
+	// Envoy's ext_authz HTTP service appends the original request path to
+	// the configured path (/auth/verify + /foo → /auth/verify/foo), so the
+	// wildcard variant must answer too.
 	r.Get("/auth/verify", cfg.Auth.Verify)
+	r.Get("/auth/verify/*", cfg.Auth.Verify)
 
 	// Prometheus scrape target: unauthenticated, same port as the API (no
 	// separate metrics listener to manage in the chart).
