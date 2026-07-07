@@ -1,0 +1,16 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cyberkube
+  labels:
+    app.kubernetes.io/part-of: ctf-platform
+---
+# Where Challenge CRs live and where the operator spins up dynamic instances.
+# cyberkube reads/writes here (CHALLENGE_NAMESPACE=ctf-instances).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ctf-instances
+  labels:
+    app.kubernetes.io/part-of: ctf-platform

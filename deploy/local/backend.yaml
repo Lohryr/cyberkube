@@ -1,0 +1,83 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cyberkube
+  namespace: cyberkube
+  labels:
+    app: cyberkube
+    app.kubernetes.io/name: cyberkube
+    app.kubernetes.io/component: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cyberkube
+  template:
+    metadata:
+      labels:
+        app: cyberkube
+        app.kubernetes.io/name: cyberkube
+        app.kubernetes.io/component: backend
+    spec:
+      serviceAccountName: cyberkube
+      containers:
+      - name: cyberkube
+        image: elohyrr/cyberkube:local
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8080
+        env:
+        - name: LISTEN_ADDR
+          value: ":8080"
+        - name: CHALLENGE_NAMESPACE
+          value: ctf-instances
+        - name: COOKIE_DOMAIN
+          value: ".devleo.local"
+        - name: INSECURE_COOKIE
+          value: "true"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: cyberkube-secrets
+              key: DATABASE_URL
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: cyberkube-secrets
+              key: JWT_SECRET
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 3
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 20
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cyberkube
+  namespace: cyberkube
+  labels:
+    app: cyberkube
+spec:
+  selector:
+    app: cyberkube
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080

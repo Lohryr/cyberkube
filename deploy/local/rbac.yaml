@@ -1,0 +1,39 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cyberkube
+  namespace: cyberkube
+---
+# cyberkube reads Challenge CRs and manages ChallengeInstance CRs in the
+# ctf-instances namespace (it does NOT touch pods/svc/ingress — that's the
+# operator's job). Namespaced Role since everything lives in one namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cyberkube-challenges
+  namespace: ctf-instances
+rules:
+- apiGroups: ["ctf.ctf.io"]
+  resources: ["challenges"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["ctf.ctf.io"]
+  resources: ["challengeinstances"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["ctf.ctf.io"]
+  resources: ["challengeinstances/status"]
+  verbs: ["get", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cyberkube-challenges
+  namespace: ctf-instances
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: cyberkube-challenges
+subjects:
+- kind: ServiceAccount
+  name: cyberkube
+  namespace: cyberkube

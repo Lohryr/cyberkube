@@ -1,0 +1,581 @@
+openapi: 3.0.3
+info:
+  title: cyberkube API
+  version: "1"
+  description: |
+    All-in-one CTF platform backend: native auth, teams, scoring, challenge
+    catalog, and dynamic instance orchestration. Documents the contractual
+    `/api/v1/*` surface plus the infra-facing `/healthz` and `/auth/verify`
+    endpoints.
+
+    `/api/v1/*` is the contract. `/api/*` mounts the exact same handlers as a
+    temporary alias for the v2->v3 frontend cutover and will be removed once
+    that completes (see openspec/changes/cybercube-v3).
+
+    Authentication is same-origin by default: the session is a cookie
+    (`cyberkube_token`, HttpOnly, SameSite=Lax) set by /api/v1/login and
+    /api/v1/teams/*. A `Bearer <token>` Authorization header using the same
+    JWT is equally accepted on every authenticated route, for third-party
+    clients that cannot rely on the cookie.
+servers:
+  - url: /
+tags:
+  - name: auth
+  - name: teams
+  - name: world
+  - name: challenges
+  - name: scoreboard
+  - name: events
+  - name: infra
+
+paths:
+  /healthz:
+    get:
+      tags: [infra]
+      summary: Liveness/readiness probe
+      responses:
+        "200":
+          description: Process is up.
+
+  /auth/verify:
+    get:
+      tags: [infra]
+      summary: NGINX Ingress auth-url subrequest target
+      description: |
+        Validates the JWT from the Cookie or Authorization header and
+        returns identity headers. Used both by the frontend to check
+        session validity and, in production, by challenge-instance Ingress
+        objects as the `auth-url` external-auth target.
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Token valid.
+          headers:
+            X-User-Id: { schema: { type: string } }
+            X-Username: { schema: { type: string } }
+            X-Team-Id: { schema: { type: string } }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /metrics:
+    get:
+      tags: [infra]
+      summary: Prometheus scrape endpoint (unauthenticated)
+      responses:
+        "200":
+          description: Metrics in the Prometheus text exposition format.
+          content:
+            text/plain: {}
+
+  /api/v1/register:
+    post:
+      tags: [auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegisterRequest" }
+      responses:
+        "201":
+          description: User created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RegisterResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "409":
+          description: Username or email already taken.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/login:
+    post:
+      tags: [auth]
+      summary: Log in and obtain a session
+      description: |
+        On success, sets the `cyberkube_token` session cookie and also
+        returns the JWT in the body for Bearer-mode clients.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        "200":
+          description: Authenticated.
+          headers:
+            Set-Cookie: { schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoginResponse" }
+        "401":
+          description: Invalid credentials (identical body whether the account exists or not).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/me:
+    get:
+      tags: [auth]
+      summary: Current user profile
+      security: [{ cookieAuth: [] }, { bearerAuth: [] }]
+      responses:
+        "200":
+          description: Profile.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Me" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/teams:
+    post:
+      tags: [teams]
+      summary: Create a team (the caller becomes its first member)
+      security: [{ cookieAuth: [] }, { bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateTeamRequest" }
+      responses:
+        "201":
+          description: Team created.
+          headers:
+            X-New-Token: { schema: { type: string }, description: Re-issued JWT carrying the new team claim. }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Team" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409":
+          description: Already in a team, or the team name is taken.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/teams/join:
+    post:
+      tags: [teams]
+      summary: Join an existing team by invite code
+      security: [{ cookieAuth: [] }, { bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/JoinTeamRequest" }
+      responses:
+        "200":
+          description: Joined.
+          headers:
+            X-New-Token: { schema: { type: string } }
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  name: { type: string }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404":
+          description: Invalid invite code.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: Already in a team.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/teams/mine:
+    get:
+      tags: [teams]
+      summary: Current user's team
+      security: [{ cookieAuth: [] }, { bearerAuth: [] }]
+      responses:
+        "200":
+          description: Team.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Team" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404":
+          description: The user has not joined a team.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/world:
+    get:
+      tags: [world]
+      summary: World descriptor for procedural rendering
+      description: |
+        The single entry point a client needs to deterministically render
+        the procedural world: a seed, the generator algorithm version, and
+        the same visible-challenge projection served by GET
+        /api/v1/challenges. Two clients calling this with the same result
+        render an identical world (same challenge sites).
+      security: [{ cookieAuth: [] }, { bearerAuth: [] }]
+      responses:
+        "200":
+          description: World descriptor.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/World" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
+  /api/v1/challenges:
+    get:
+      tags: [challenges]
+      summary: List visible challenges
+      security: [{ cookieAuth: [] }, { bearerAuth: [] }]
+      responses:
+        "200":
+          description: Visible challenges, scored for the caller's team.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Challenge" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
+  /api/v1/challenges/{name}/attachments/{attachment}:
+    get:
+      tags: [challenges]
+      summary: Download a static-challenge attachment
+      security: [{ cookieAuth: [] }, { bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/ChallengeName"
+        - name: attachment
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Attachment content.
+          content:
+            application/octet-stream: {}
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404":
+          description: Challenge or attachment not found (hidden challenges 404 too).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "502":
+          description: The OCI registry did not serve the attachment.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/challenges/{name}/submit:
+    post:
+      tags: [challenges]
+      summary: Submit a flag
+      security: [{ cookieAuth: [] }, { bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/ChallengeName"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SubmitRequest" }
+      responses:
+        "200":
+          description: |
+            Submission recorded. `correct` reports whether the flag matched;
+            `points` is present and non-zero only the first time a team
+            solves the challenge.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SubmitResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403":
+          description: The caller has not joined a team yet.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Challenge not found or hidden.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: Static challenge flag not yet decrypted by the operator.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/challenges/{name}/launch:
+    post:
+      tags: [challenges]
+      summary: Launch (or reuse) a dynamic challenge instance
+      security: [{ cookieAuth: [] }, { bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/ChallengeName"
+      responses:
+        "200":
+          description: An existing, non-expired instance was reused.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Instance" }
+        "202":
+          description: A new instance was created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Instance" }
+        "400":
+          description: The challenge is static (no instances).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403":
+          description: The caller has not joined a team yet.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Challenge not found or hidden.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/challenges/{name}/instance:
+    get:
+      tags: [challenges]
+      summary: Current instance status for the caller's team
+      security: [{ cookieAuth: [] }, { bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/ChallengeName"
+      responses:
+        "200":
+          description: Instance status (status "none" if never launched).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Instance" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403":
+          description: The caller has not joined a team yet.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Challenge not found or hidden.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/scoreboard:
+    get:
+      tags: [scoreboard]
+      summary: Team scoreboard, ordered by points desc
+      security: [{ cookieAuth: [] }, { bearerAuth: [] }]
+      responses:
+        "200":
+          description: Scoreboard entries.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ScoreboardEntry" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
+  /api/v1/events:
+    get:
+      tags: [events]
+      summary: Real-time event feed (WebSocket upgrade)
+      description: |
+        x-websocket: this is not a plain HTTP GET — the client must perform
+        a WebSocket upgrade (`Connection: Upgrade`, `Upgrade: websocket`).
+        Authenticated the same way as every other /api/v1 route (cookie or
+        Bearer). Server-push only: the server never expects client frames.
+
+        Consistent across replicas via PostgreSQL LISTEN/NOTIFY fan-out: a
+        solve on replica A reaches clients connected to replica B within
+        about 2 seconds.
+
+        Every frame is a JSON `Event`:
+        - `challenge.solved`: `{ teamId, challenge, points }`
+        - `scoreboard.updated`: no payload — clients should refetch
+          GET /api/v1/scoreboard
+        - `instance.status`: `{ challenge, teamId, status }`
+      security: [{ cookieAuth: [] }, { bearerAuth: [] }]
+      responses:
+        "101":
+          description: Switching Protocols — WebSocket established.
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: cyberkube_token
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    ChallengeName:
+      name: name
+      in: path
+      required: true
+      description: Challenge CR metadata.name
+      schema: { type: string }
+
+  responses:
+    BadRequest:
+      description: Invalid request body.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Unauthorized:
+      description: Missing or invalid session.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    InternalError:
+      description: Unexpected server error.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+      required: [error]
+
+    RegisterRequest:
+      type: object
+      required: [username, email, password]
+      properties:
+        username: { type: string }
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8 }
+
+    RegisterResponse:
+      type: object
+      properties:
+        id: { type: string }
+        username: { type: string }
+
+    LoginRequest:
+      type: object
+      required: [login, password]
+      properties:
+        login: { type: string, description: Username or email. }
+        password: { type: string }
+
+    LoginResponse:
+      type: object
+      properties:
+        token: { type: string, description: JWT, also set as the cyberkube_token cookie. }
+
+    Me:
+      type: object
+      properties:
+        id: { type: string }
+        username: { type: string }
+        email: { type: string }
+        teamId: { type: string, description: Empty when the user has not joined a team. }
+
+    CreateTeamRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+
+    JoinTeamRequest:
+      type: object
+      required: [inviteCode]
+      properties:
+        inviteCode: { type: string }
+
+    Team:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        inviteCode: { type: string }
+
+    World:
+      type: object
+      required: [seed, generatorVersion, teamMode, challenges]
+      properties:
+        seed:
+          type: string
+          description: >-
+            Stable across replicas and restarts: from WORLD_SEED if set,
+            otherwise generated once and persisted.
+        generatorVersion:
+          type: integer
+          description: Procedural generation algorithm version the client must match.
+        teamMode:
+          type: boolean
+          description: Always true today — instances and scoring are team-scoped.
+        challenges:
+          type: array
+          items: { $ref: "#/components/schemas/Challenge" }
+
+    Challenge:
+      type: object
+      properties:
+        name: { type: string }
+        displayName: { type: string }
+        category: { type: string }
+        description: { type: string }
+        mode: { type: string, enum: [static, dynamic] }
+        value: { type: integer, description: Current point value (post-decay). }
+        solves: { type: integer, description: Number of teams that have solved it. }
+        solvedByTeam: { type: boolean }
+        attachments:
+          type: array
+          items: { type: string }
+
+    SubmitRequest:
+      type: object
+      required: [flag]
+      properties:
+        flag: { type: string }
+
+    SubmitResponse:
+      type: object
+      properties:
+        correct: { type: boolean }
+        points:
+          type: integer
+          description: Present and non-zero only on the team's first correct submission.
+
+    Instance:
+      type: object
+      properties:
+        status: { type: string, enum: [none, pending, ready] }
+        connectionInfo: { type: string }
+        expiresAt: { type: string, format: date-time }
+
+    ScoreboardEntry:
+      type: object
+      properties:
+        teamId: { type: string }
+        teamName: { type: string }
+        points: { type: integer }
+
+    Event:
+      type: object
+      required: [type, payload, ts]
+      properties:
+        type:
+          type: string
+          enum: [scoreboard.updated, challenge.solved, instance.status]
+        payload: {}
+        ts: { type: string, format: date-time }

@@ -1,0 +1,11 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`terrain sampler > same seed → same heights at fixed points (snapshot) 1`] = `
+[
+  "7.819432",
+  "5.773995",
+  "8.790124",
+  "8.464276",
+  "8.626378",
+]
+`;

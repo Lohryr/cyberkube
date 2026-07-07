@@ -1,0 +1,124 @@
+import * as THREE from "three";
+
+// A simple drivable rover: WASD/arrows steer and accelerate a body on the
+// ground plane; the camera chases it. No physics engine — just eased
+// kinematics that feel good, in the spirit of an explorable portfolio world.
+
+export class Rover {
+  readonly object = new THREE.Group();
+  private velocity = 0;
+  private heading = 0; // radians
+  private readonly keys = new Set<string>();
+
+  private readonly maxSpeed = 42;
+  private readonly accel = 55;
+  private readonly friction = 28;
+  private readonly turnRate = 2.4;
+
+  constructor() {
+    const bodyMat = new THREE.MeshStandardMaterial({ color: 0xf5f7fa, metalness: 0.3, roughness: 0.4 });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1, 4), bodyMat);
+    body.position.y = 1;
+    body.castShadow = true;
+    this.object.add(body);
+
+    const cabinMat = new THREE.MeshStandardMaterial({ color: 0x4f8dfd, metalness: 0.2, roughness: 0.3 });
+    const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.9, 1.8), cabinMat);
+    cabin.position.set(0, 1.8, -0.2);
+    cabin.castShadow = true;
+    this.object.add(cabin);
+
+    const wheelGeo = new THREE.CylinderGeometry(0.6, 0.6, 0.5, 12);
+    const wheelMat = new THREE.MeshStandardMaterial({ color: 0x15171e });
+    for (const [dx, dz] of [
+      [-1.3, 1.4],
+      [1.3, 1.4],
+      [-1.3, -1.4],
+      [1.3, -1.4],
+    ]) {
+      const wheel = new THREE.Mesh(wheelGeo, wheelMat);
+      wheel.rotation.z = Math.PI / 2;
+      wheel.position.set(dx, 0.6, dz);
+      this.object.add(wheel);
+    }
+
+    this.object.position.set(0, 0, 90); // start on the edge, looking inward
+    this.heading = Math.PI;
+  }
+
+  attach(): void {
+    window.addEventListener("keydown", this.onKeyDown);
+    window.addEventListener("keyup", this.onKeyUp);
+  }
+
+  detach(): void {
+    window.removeEventListener("keydown", this.onKeyDown);
+    window.removeEventListener("keyup", this.onKeyUp);
+  }
+
+  /** Suspend input while an overlay/panel is open. */
+  setEnabled(enabled: boolean): void {
+    if (!enabled) this.keys.clear();
+    this.enabled = enabled;
+  }
+
+  private enabled = true;
+
+  private readonly onKeyDown = (e: KeyboardEvent) => {
+    if (!this.enabled) return;
+    this.keys.add(e.key.toLowerCase());
+  };
+  private readonly onKeyUp = (e: KeyboardEvent) => {
+    this.keys.delete(e.key.toLowerCase());
+  };
+
+  private pressed(...keys: string[]): boolean {
+    return keys.some((k) => this.keys.has(k));
+  }
+
+  update(dt: number): void {
+    const forward = this.pressed("w", "arrowup");
+    const back = this.pressed("s", "arrowdown");
+    const left = this.pressed("a", "arrowleft");
+    const right = this.pressed("d", "arrowright");
+
+    if (forward) this.velocity += this.accel * dt;
+    else if (back) this.velocity -= this.accel * dt;
+    else {
+      // ease toward zero
+      const drop = this.friction * dt;
+      if (Math.abs(this.velocity) <= drop) this.velocity = 0;
+      else this.velocity -= Math.sign(this.velocity) * drop;
+    }
+    this.velocity = THREE.MathUtils.clamp(this.velocity, -this.maxSpeed * 0.5, this.maxSpeed);
+
+    // Steering scales with speed so it turns only while moving.
+    const steer = (left ? 1 : 0) - (right ? 1 : 0);
+    this.heading += steer * this.turnRate * dt * Math.min(1, Math.abs(this.velocity) / 6);
+
+    this.object.position.x += Math.sin(this.heading) * this.velocity * dt;
+    this.object.position.z += Math.cos(this.heading) * this.velocity * dt;
+    this.object.rotation.y = this.heading;
+
+    // keep inside the world bounds
+    const limit = 240;
+    this.object.position.x = THREE.MathUtils.clamp(this.object.position.x, -limit, limit);
+    this.object.position.z = THREE.MathUtils.clamp(this.object.position.z, -limit, limit);
+  }
+
+  get groundPosition(): { x: number; z: number } {
+    return { x: this.object.position.x, z: this.object.position.z };
+  }
+
+  /** Position the chase camera behind the rover. */
+  updateCamera(camera: THREE.PerspectiveCamera): void {
+    const back = new THREE.Vector3(-Math.sin(this.heading), 0, -Math.cos(this.heading));
+    const camPos = this.object.position
+      .clone()
+      .add(back.multiplyScalar(16))
+      .add(new THREE.Vector3(0, 11, 0));
+    camera.position.lerp(camPos, 0.12);
+    // Track the rover's terrain height so hills don't push it off-frame.
+    camera.lookAt(this.object.position.x, this.object.position.y + 2, this.object.position.z);
+  }
+}

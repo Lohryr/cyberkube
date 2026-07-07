@@ -1,0 +1,18 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Local kind deployment for the cyberkube all-in-one app (backend + frontend +
+# PostgreSQL). The chall-operator + Challenge CRs are applied separately from
+# infra-gitops/apps/chall-operator. Images are kind-loaded with the :local tag.
+# No global `namespace:` transformer — each resource sets its own (cyberkube vs
+# ctf-instances for the cross-namespace RBAC).
+
+resources:
+  - namespace.yaml
+  - secret.yaml
+  - postgres.yaml
+  - rbac.yaml
+  - backend.yaml
+  - frontend.yaml
+  - ingress.yaml

@@ -1,0 +1,56 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`challenge sites > same {seed, catalog} → identical sites (snapshot) 1`] = `
+[
+  {
+    "biomeId": "forest",
+    "category": "crypto",
+    "name": "crypto-messager-legion",
+    "padRadius": 13,
+    "scale": 2,
+    "x": "-69.6715",
+    "y": "16.1302",
+    "z": "-139.0631",
+  },
+  {
+    "biomeId": "desert",
+    "category": "crypto",
+    "name": "crypto-operation-blackout",
+    "padRadius": 14,
+    "scale": 2.333333333333333,
+    "x": "-133.7169",
+    "y": "8.0076",
+    "z": "243.1996",
+  },
+  {
+    "biomeId": "plains",
+    "category": "web",
+    "name": "web-firesheep",
+    "padRadius": 12,
+    "scale": 1.6666666666666665,
+    "x": "-183.2055",
+    "y": "6.7648",
+    "z": "-51.6464",
+  },
+  {
+    "biomeId": "swamp",
+    "category": "forensics",
+    "name": "forensics-drive",
+    "padRadius": 15,
+    "scale": 2.666666666666667,
+    "x": "3.3156",
+    "y": "4.5994",
+    "z": "334.0518",
+  },
+  {
+    "biomeId": "desert",
+    "category": "pwn",
+    "name": "pwn-heapster",
+    "padRadius": 16,
+    "scale": 3,
+    "x": "-110.0727",
+    "y": "4.3652",
+    "z": "295.7366",
+  },
+]
+`;

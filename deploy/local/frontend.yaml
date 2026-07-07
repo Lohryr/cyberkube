@@ -1,0 +1,59 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cyberkube-frontend
+  namespace: cyberkube
+  labels:
+    app: cyberkube-frontend
+    app.kubernetes.io/name: cyberkube-frontend
+    app.kubernetes.io/component: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cyberkube-frontend
+  template:
+    metadata:
+      labels:
+        app: cyberkube-frontend
+        app.kubernetes.io/name: cyberkube-frontend
+        app.kubernetes.io/component: frontend
+    spec:
+      containers:
+      - name: frontend
+        # Built with empty VITE_API_BASE => relative /api calls => same origin
+        # as the backend behind the shared ingress (no CORS needed).
+        image: elohyrr/cyberkube-front:local
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 80
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 3
+          periodSeconds: 5
+        resources:
+          requests:
+            cpu: 25m
+            memory: 32Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cyberkube-frontend
+  namespace: cyberkube
+  labels:
+    app: cyberkube-frontend
+spec:
+  selector:
+    app: cyberkube-frontend
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
