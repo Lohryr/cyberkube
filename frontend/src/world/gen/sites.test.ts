@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { PLAYABLE_BOUND, SITE_BOUND } from "../bounds";
 import { biomeById } from "./biomes";
 import { computeSites, preferredBiome, CATEGORY_BIOMES } from "./sites";
 import { createTerrainSampler } from "./terrain";
@@ -36,6 +37,22 @@ describe("challenge sites", () => {
       expect(same.x).toBe(site.x);
       expect(same.z).toBe(site.z);
       expect(same.y).toBe(site.y);
+    }
+  });
+
+  it("every site stays inside the invisible wall the rover is clamped to", () => {
+    const sampler = createTerrainSampler(SEED);
+    // Big catalog to exercise many rejection-sampling paths.
+    const catalog = Array.from({ length: 60 }, (_, i) => ({
+      name: `chall-${i}`,
+      category: ["web", "crypto", "pwn", "reverse", "forensics", "osint"][i % 6],
+      value: 50 + i,
+    }));
+    for (const site of computeSites(SEED, catalog, sampler)) {
+      expect(Math.abs(site.x)).toBeLessThanOrEqual(SITE_BOUND);
+      expect(Math.abs(site.z)).toBeLessThanOrEqual(SITE_BOUND);
+      expect(Math.abs(site.x)).toBeLessThan(PLAYABLE_BOUND);
+      expect(Math.abs(site.z)).toBeLessThan(PLAYABLE_BOUND);
     }
   });
 

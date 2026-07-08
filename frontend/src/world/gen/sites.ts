@@ -10,6 +10,7 @@
 // Conventions kept from v1 (building.ts): cone marker = dynamic, sphere =
 // static, scale ∝ points, gold when solved.
 
+import { SITE_BOUND } from "../bounds";
 import { classifyBiome, biomeById, BIOMES, type Biome } from "./biomes";
 import { createRng, fnv1a } from "./rng";
 import type { TerrainSampler } from "./terrain";
@@ -76,7 +77,9 @@ export function computeSites(
   sampler: TerrainSampler,
 ): Site[] {
   const maxValue = challenges.reduce((m, c) => Math.max(m, c.value), 1);
-  const extent = sampler.config.worldExtent * PLACEMENT_MARGIN;
+  // Never place a site beyond the invisible wall the rover is clamped to,
+  // even when the terrain itself extends further.
+  const extent = Math.min(sampler.config.worldExtent * PLACEMENT_MARGIN, SITE_BOUND);
 
   return challenges.map((c) => {
     const rng = createRng(seed, `site:${c.name}`);

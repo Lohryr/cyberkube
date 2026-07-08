@@ -1,8 +1,11 @@
 import * as THREE from "three";
+import { PLAYABLE_BOUND } from "./world/bounds";
 
-// A simple drivable rover: WASD/arrows steer and accelerate a body on the
-// ground plane; the camera chases it. No physics engine — just eased
-// kinematics that feel good, in the spirit of an explorable portfolio world.
+// A simple drivable rover: WASD/ZQSD/arrows steer and accelerate a body on
+// the ground plane; the camera chases it. Movement reads physical key codes
+// (KeyboardEvent.code), so the same four physical keys work on any layout:
+// WASD on QWERTY is ZQSD on AZERTY without any configuration. No physics
+// engine — just eased kinematics that feel good.
 
 export class Rover {
   readonly object = new THREE.Group();
@@ -66,21 +69,21 @@ export class Rover {
 
   private readonly onKeyDown = (e: KeyboardEvent) => {
     if (!this.enabled) return;
-    this.keys.add(e.key.toLowerCase());
+    this.keys.add(e.code);
   };
   private readonly onKeyUp = (e: KeyboardEvent) => {
-    this.keys.delete(e.key.toLowerCase());
+    this.keys.delete(e.code);
   };
 
-  private pressed(...keys: string[]): boolean {
-    return keys.some((k) => this.keys.has(k));
+  private pressed(...codes: string[]): boolean {
+    return codes.some((c) => this.keys.has(c));
   }
 
   update(dt: number): void {
-    const forward = this.pressed("w", "arrowup");
-    const back = this.pressed("s", "arrowdown");
-    const left = this.pressed("a", "arrowleft");
-    const right = this.pressed("d", "arrowright");
+    const forward = this.pressed("KeyW", "ArrowUp");
+    const back = this.pressed("KeyS", "ArrowDown");
+    const left = this.pressed("KeyA", "ArrowLeft");
+    const right = this.pressed("KeyD", "ArrowRight");
 
     if (forward) this.velocity += this.accel * dt;
     else if (back) this.velocity -= this.accel * dt;
@@ -100,10 +103,9 @@ export class Rover {
     this.object.position.z += Math.cos(this.heading) * this.velocity * dt;
     this.object.rotation.y = this.heading;
 
-    // keep inside the world bounds
-    const limit = 240;
-    this.object.position.x = THREE.MathUtils.clamp(this.object.position.x, -limit, limit);
-    this.object.position.z = THREE.MathUtils.clamp(this.object.position.z, -limit, limit);
+    // keep inside the world bounds (same wall the site placement respects)
+    this.object.position.x = THREE.MathUtils.clamp(this.object.position.x, -PLAYABLE_BOUND, PLAYABLE_BOUND);
+    this.object.position.z = THREE.MathUtils.clamp(this.object.position.z, -PLAYABLE_BOUND, PLAYABLE_BOUND);
   }
 
   get groundPosition(): { x: number; z: number } {
