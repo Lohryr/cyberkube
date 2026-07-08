@@ -112,6 +112,11 @@ export class Rover {
     return { x: this.object.position.x, z: this.object.position.z };
   }
 
+  /** Current facing angle in radians (for the minimap arrow). */
+  get facing(): number {
+    return this.heading;
+  }
+
   /** Position the chase camera behind the rover. */
   updateCamera(camera: THREE.PerspectiveCamera): void {
     const back = new THREE.Vector3(-Math.sin(this.heading), 0, -Math.cos(this.heading));

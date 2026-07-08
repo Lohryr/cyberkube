@@ -5,6 +5,7 @@ import { World } from "./world/world";
 import { deriveSeedFromChallenges, GENERATOR_VERSION } from "./world/gen/worldgen";
 import { Rover } from "./controls";
 import { Hud } from "./ui/hud";
+import { Minimap } from "./ui/minimap";
 import { runLandingFlow } from "./ui/auth";
 import { openChallengePanel } from "./ui/challengePanel";
 import { openScoreboard } from "./ui/scoreboard";
@@ -44,6 +45,7 @@ async function bootWorld(): Promise<void> {
     setPaused(true);
     void openScoreboard(() => setPaused(false));
   });
+  const minimap = new Minimap();
 
   // Load the world descriptor + catalog and render. Re-runnable so a solve or
   // a new challenge set regenerates the world with no code change. If the
@@ -65,6 +67,7 @@ async function bootWorld(): Promise<void> {
         console.info("GET /api/v1/world unavailable, using seed derived from catalog", err);
       }
       world.rebuild(challenges, { seed, generatorVersion });
+      minimap.rebuild(world, challenges);
     } catch (err) {
       showBanner(err instanceof ApiError ? err.message : "Could not load challenges");
     }
@@ -109,6 +112,7 @@ async function bootWorld(): Promise<void> {
       const { x, z } = rover.groundPosition;
       rover.object.position.y = world.heightAt(x, z);
       world.update(x, z);
+      minimap.update(x, z, rover.facing);
     }
     rover.updateCamera(camera);
 

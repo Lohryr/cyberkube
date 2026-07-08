@@ -1,7 +1,9 @@
 import * as THREE from "three";
 import type { Challenge } from "../api";
 import { createBuilding, createSitePad, type Building } from "./building";
+import type { Biome } from "./gen/biomes";
 import { ChunkManager } from "./gen/chunks";
+import type { Site } from "./gen/sites";
 import { createWorldGen, GENERATOR_VERSION, type WorldGen } from "./gen/worldgen";
 
 // World owns the scene graph derived from the live challenge catalog and the
@@ -96,6 +98,16 @@ export class World {
   /** Final terrain height (pads included) — the ground the player drives on. */
   heightAt(x: number, z: number): number {
     return this.gen ? this.gen.height(x, z) : 0;
+  }
+
+  /** Biome at a ground position (null before the first rebuild). */
+  biomeAt(x: number, z: number): Biome | null {
+    return this.gen ? this.gen.biomeAt(x, z) : null;
+  }
+
+  /** Challenge sites of the current world (empty before the first rebuild). */
+  get sites(): Site[] {
+    return this.gen?.sites ?? [];
   }
 
   /** Nearest building within `radius` of the given ground position, or null. */

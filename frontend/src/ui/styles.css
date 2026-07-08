@@ -145,6 +145,17 @@ button.btn:disabled { opacity: 0.5; cursor: default; }
   font-family: ui-monospace, monospace;
 }
 
+.minimap {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 10;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(21, 25, 37, 0.7);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
 .hud-top {
   position: fixed;
   top: 16px;
