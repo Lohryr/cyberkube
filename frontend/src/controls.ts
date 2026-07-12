@@ -9,7 +9,7 @@ import { PLAYABLE_BOUND } from "./world/bounds";
 
 export class Rover {
   readonly object = new THREE.Group();
-  private velocity = 0;
+  private _velocity = 0;
   private heading = 0; // radians
   private readonly keys = new Set<string>();
 
@@ -79,28 +79,49 @@ export class Rover {
     return codes.some((c) => this.keys.has(c));
   }
 
+  /** Current forward(+)/backward(-) speed. Exposed read-only for the minimap/HUD and tests. */
+  get velocity(): number {
+    return this._velocity;
+  }
+
+  /**
+   * Test seam: simulate a physical key being held/released without a real
+   * KeyboardEvent/DOM. Behaves exactly like `onKeyDown`/`onKeyUp`.
+   */
+  pressKey(code: string): void {
+    if (!this.enabled) return;
+    this.keys.add(code);
+  }
+  releaseKey(code: string): void {
+    this.keys.delete(code);
+  }
+
   update(dt: number): void {
     const forward = this.pressed("KeyW", "ArrowUp");
     const back = this.pressed("KeyS", "ArrowDown");
     const left = this.pressed("KeyA", "ArrowLeft");
     const right = this.pressed("KeyD", "ArrowRight");
 
-    if (forward) this.velocity += this.accel * dt;
-    else if (back) this.velocity -= this.accel * dt;
+    if (forward) this._velocity += this.accel * dt;
+    else if (back) this._velocity -= this.accel * dt;
     else {
       // ease toward zero
       const drop = this.friction * dt;
-      if (Math.abs(this.velocity) <= drop) this.velocity = 0;
-      else this.velocity -= Math.sign(this.velocity) * drop;
+      if (Math.abs(this._velocity) <= drop) this._velocity = 0;
+      else this._velocity -= Math.sign(this._velocity) * drop;
     }
-    this.velocity = THREE.MathUtils.clamp(this.velocity, -this.maxSpeed * 0.5, this.maxSpeed);
+    this._velocity = THREE.MathUtils.clamp(this._velocity, -this.maxSpeed * 0.5, this.maxSpeed);
 
-    // Steering scales with speed so it turns only while moving.
-    const steer = (left ? 1 : 0) - (right ? 1 : 0);
-    this.heading += steer * this.turnRate * dt * Math.min(1, Math.abs(this.velocity) / 6);
+    // Steering scales with speed so it turns only while moving. While
+    // reversing, invert the steering sign so a "turn left" key still curves
+    // the rover's path to the screen-left (matching real-vehicle reverse
+    // steering), instead of swinging the nose the opposite way.
+    const reverseSign = this._velocity < 0 ? -1 : 1;
+    const steer = ((left ? 1 : 0) - (right ? 1 : 0)) * reverseSign;
+    this.heading += steer * this.turnRate * dt * Math.min(1, Math.abs(this._velocity) / 6);
 
-    this.object.position.x += Math.sin(this.heading) * this.velocity * dt;
-    this.object.position.z += Math.cos(this.heading) * this.velocity * dt;
+    this.object.position.x += Math.sin(this.heading) * this._velocity * dt;
+    this.object.position.z += Math.cos(this.heading) * this._velocity * dt;
     this.object.rotation.y = this.heading;
 
     // keep inside the world bounds (same wall the site placement respects)
