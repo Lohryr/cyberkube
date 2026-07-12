@@ -1,0 +1,109 @@
+name: "🧩 Demande spec-ready (feature / fix)"
+description: "Issue structurée pour le pipeline OpenSpec — chaque champ rempli = une hypothèse de moins pour l'agent qui rédigera la proposal."
+title: "<action courte, ex: corriger l'inversion des contrôles en marche arrière>"
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Comment c'est utilisé** : quand tu poses le label `needs-openspec` sur cette issue,
+        Loop 0 rédige un change OpenSpec (proposal/design/tasks) et ouvre une PR draft.
+        Tout champ vague ou vide sera remplacé par une hypothèse (`Assumption:`) que tu devras
+        corriger en review de PR — autant être précis ici.
+        ⚠️ Pas de préfixe `[...]` dans le titre : ce format est réservé aux issues générées
+        depuis un change OpenSpec existant.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Composant concerné
+      description: Où vit le problème ? Détermine quel agent technique implémentera.
+      options:
+        - cyberkube — frontend (Phaser.js, jeu 2D)
+        - cyberkube — backend (Go — auth, users, scoring, challenge API)
+        - cyberkube — les deux (front + back)
+        - chall-operator (operator K8s)
+        - cyberkube-chart (Helm, RBAC, Ingress, CRDs)
+        - challenges (tokzeen)
+        - infra (Terraform / OCI)
+        - documentation
+        - je ne sais pas
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problème / besoin
+      description: Le QUOI et le POURQUOI — pas la solution. C'est ce qui alimente la section "Why" de la proposal.
+      placeholder: |
+        En marche arrière, les contrôles gauche/droite sont inversés par rapport à
+        une vraie conduite automobile, ce qui casse l'immersion du jeu.
+    validations:
+      required: true
+
+  - type: textarea
+    id: current
+    attributes:
+      label: Comportement actuel
+      description: Ce qui se passe aujourd'hui, avec les étapes exactes pour reproduire si c'est un bug.
+      placeholder: |
+        1. Lancer le jeu, avancer avec Z
+        2. Reculer avec S, puis appuyer sur Q
+        3. Constaté : le véhicule part à droite
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Comportement attendu
+      description: Ce qui devrait se passer, décrit de façon vérifiable.
+      placeholder: |
+        S + Q → l'arrière du véhicule part à gauche (comportement volant réel).
+        S + D → l'arrière part à droite.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Critères d'acceptation
+      description: Liste à cocher — chaque ligne deviendra potentiellement une task/un scénario de spec testable.
+      placeholder: |
+        - [ ] En marche arrière, Q/D reproduisent le comportement d'un vrai volant
+        - [ ] La marche avant est inchangée
+        - [ ] Testé au clavier ZQSD et aux flèches
+    validations:
+      required: true
+
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Hors scope / contraintes
+      description: Ce que la solution ne doit PAS toucher, ou les limites connues. Évite le scope creep dans la proposal.
+      placeholder: |
+        - Ne pas toucher au système de collision
+        - Pas de rebind des touches dans cette issue
+
+  - type: textarea
+    id: technical-hints
+    attributes:
+      label: Pistes techniques (optionnel)
+      description: Fichiers suspectés, hypothèses de cause, liens vers du code — tout ce qui évite à l'agent de chercher au mauvais endroit.
+      placeholder: |
+        Probablement dans la scène Phaser qui gère le mouvement du joueur
+        (logique de vélocité/direction).
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priorité
+      options:
+        - critique (bloque l'usage)
+        - haute (avant la prochaine démo)
+        - normale
+        - basse (quand il y a le temps)
+      default: 2
+    validations:
+      required: true
