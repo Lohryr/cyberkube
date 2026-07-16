@@ -107,3 +107,42 @@ not yet watched and rebroadcast — the frontend should keep polling
 go test ./...                                   # unit + fakes (no external deps)
 TEST_DATABASE_URL=postgres://... go test ./internal/store  # real PostgreSQL
 ```
+
+## Release
+
+Images are published **only** by pushing a git tag matching `v*` — never from
+`main`, never from a pull request. The CI `images` job is gated on
+`if: startsWith(github.ref, 'refs/tags/v')`, so a `main` push or a PR runs the
+quality gates but produces no image.
+
+**Trigger**: push a tag `vX.Y.Z` (e.g. `v0.0.1`). The published image tag is the
+git tag with the leading `v` stripped (`${GITHUB_REF_NAME#v}`), so `v0.0.1` →
+`0.0.1`.
+
+**Gates (all must pass before any push)** — the `images` job
+`needs: [backend, frontend, gitleaks]`, so a single red gate blocks every push:
+
+| Gate | Checks |
+|------|--------|
+| `gitleaks` | secret scan over full history |
+| `backend` | `gofmt` / `go vet` / `go test ./...` / `govulncheck` |
+| `frontend` | `npm ci` / `npm test` / `npm run build` |
+
+**Images produced** — one tag run builds and pushes both, as a matrix:
+
+| Image | Build context | Dockerfile |
+|-------|---------------|------------|
+| `elohyrr/cyberkube` | `.` | `Dockerfile` |
+| `elohyrr/cyberkube-front` | `frontend` | `frontend/Dockerfile` |
+
+**Multi-arch**: each image is a manifest list built for `linux/amd64` and
+`linux/arm64` (QEMU + Buildx), so it runs on both x86 and ARM64 nodes (the prod
+cluster runs on ARM64 `t4g` instances).
+
+**Registry auth**: Docker Hub login uses repo secrets `DOCKER_USERNAME` and
+`DOCKER_TOKEN`; the token needs write scope on the `elohyrr` namespace.
+
+```
+git tag v0.0.1
+git push origin v0.0.1
+```
